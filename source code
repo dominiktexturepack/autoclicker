@@ -1,0 +1,196 @@
+import tkinter as tk
+from tkinter import ttk
+import threading
+import time
+from pynput.keyboard import Key, Controller as KeyController, Listener as KeyListener
+from pynput.mouse import Button, Controller as MouseController
+
+keyboard = KeyController()
+mouse = MouseController()
+
+running = False
+thread = None
+current_bind = 'f6'
+listening_for_key = False
+
+SPECIAL_KEYS = {
+    'F1': Key.f1, 'F2': Key.f2, 'F3': Key.f3, 'F4': Key.f4,
+    'F5': Key.f5, 'F6': Key.f6, 'F7': Key.f7, 'F8': Key.f8,
+    'F9': Key.f9, 'F10': Key.f10, 'F11': Key.f11, 'F12': Key.f12,
+    'SPACE': Key.space, 'ENTER': Key.enter, 'TAB': Key.tab,
+    'SHIFT': Key.shift, 'CTRL': Key.ctrl, 'ALT': Key.alt,
+    'UP': Key.up, 'DOWN': Key.down, 'LEFT': Key.left, 'RIGHT': Key.right,
+    'INSERT': Key.insert, 'DELETE': Key.delete, 'HOME': Key.home,
+    'END': Key.end, 'PAGE UP': Key.page_up, 'PAGE DOWN': Key.page_down,
+}
+
+
+def get_key_name(key):
+    try:
+        if hasattr(key, 'char') and key.char:
+            return key.char.lower()
+        return str(key).replace('Key.', '').lower()
+    except:
+        return str(key).replace('Key.', '').lower()
+
+
+def do_action():
+    action = action_var.get()
+    key = key_entry.get().strip()
+    if action == 'LPM':
+        mouse.press(Button.left)
+        mouse.release(Button.left)
+    elif action == 'PPM':
+        mouse.press(Button.right)
+        mouse.release(Button.right)
+    elif action == 'Środkowy':
+        mouse.press(Button.middle)
+        mouse.release(Button.middle)
+    else:
+        if key.upper() in SPECIAL_KEYS:
+            k = SPECIAL_KEYS[key.upper()]
+        else:
+            k = key[0] if key else 'e'
+        keyboard.press(k)
+        keyboard.release(k)
+
+
+def spam_loop():
+    while running:
+        try:
+            delay_ms = float(delay_var.get())
+        except:
+            delay_ms = 50
+        do_action()
+        time.sleep(delay_ms / 1000)
+
+
+def toggle():
+    global running, thread
+    if not running:
+        running = True
+        thread = threading.Thread(target=spam_loop, daemon=True)
+        thread.start()
+        btn_toggle.config(text="⛔ STOP", bg="#f38ba8")
+        status_label.config(text="Status: DZIAŁA ✅", fg="#00cc44")
+    else:
+        running = False
+        btn_toggle.config(text="▶ START", bg="#a6e3a1")
+        status_label.config(text="Status: ZATRZYMANY ⛔", fg="#ff4444")
+
+
+def on_press_global(key):
+    global listening_for_key, current_bind
+
+    if listening_for_key:
+        current_bind = get_key_name(key)
+        bind_label.config(text=f"Bind: [{current_bind.upper()}]")
+        listening_for_key = False
+        bind_btn.config(text="🎯 Ustaw bind", state=tk.NORMAL, bg="#89b4fa")
+        return
+
+    k = get_key_name(key)
+    if k == current_bind:
+        root.after(0, toggle)
+
+
+def start_bind_listen():
+    global listening_for_key
+    listening_for_key = True
+    bind_btn.config(text="Wciśnij klawisz...", state=tk.DISABLED, bg="#fab387")
+
+
+def start_global_listener():
+    def listen():
+        with KeyListener(on_press=on_press_global):
+            while True:
+                time.sleep(1)
+    t = threading.Thread(target=listen, daemon=True)
+    t.start()
+
+
+# ---- GUI ----
+root = tk.Tk()
+root.title("AutoClicker Pro")
+root.geometry("340x360")
+root.resizable(False, False)
+root.configure(bg="#1e1e2e")
+
+tk.Label(root, text="⚡ AutoClicker Pro",
+         font=("Segoe UI", 15, "bold"),
+         bg="#1e1e2e", fg="#cdd6f4").pack(pady=(18, 4))
+
+tk.Label(root, text="Pełna customizacja klawisza, delay i bindu",
+         font=("Segoe UI", 8),
+         bg="#1e1e2e", fg="#6c7086").pack(pady=(0, 14))
+
+frame = tk.Frame(root, bg="#313244")
+frame.pack(padx=20, fill=tk.X)
+
+tk.Label(frame, text="Akcja:", font=("Segoe UI", 10, "bold"),
+         bg="#313244", fg="#cdd6f4").grid(row=0, column=0, sticky='w', padx=10, pady=(12,4))
+
+action_var = tk.StringVar(value="Klawisz")
+ttk.Combobox(frame, textvariable=action_var,
+             values=["Klawisz", "LPM", "PPM", "Środkowy"],
+             state="readonly", width=12,
+             font=("Segoe UI", 10)).grid(row=0, column=1, padx=10, pady=(12,4), sticky='w')
+
+tk.Label(frame, text="Klawisz:", font=("Segoe UI", 10, "bold"),
+         bg="#313244", fg="#cdd6f4").grid(row=1, column=0, sticky='w', padx=10, pady=4)
+
+key_entry = tk.Entry(frame, font=("Segoe UI", 11), width=10,
+                     bg="#45475a", fg="#cdd6f4",
+                     insertbackground="#cdd6f4", bd=0,
+                     highlightthickness=1, highlightcolor="#89b4fa")
+key_entry.insert(0, "e")
+key_entry.grid(row=1, column=1, padx=10, pady=4, sticky='w')
+
+tk.Label(frame, text="(np. e, f, SPACE, F5)",
+         font=("Segoe UI", 8), bg="#313244", fg="#6c7086").grid(row=1, column=2, sticky='w')
+
+tk.Label(frame, text="Delay (ms):", font=("Segoe UI", 10, "bold"),
+         bg="#313244", fg="#cdd6f4").grid(row=2, column=0, sticky='w', padx=10, pady=4)
+
+delay_var = tk.StringVar(value="50")
+tk.Entry(frame, textvariable=delay_var,
+         font=("Segoe UI", 11), width=10,
+         bg="#45475a", fg="#cdd6f4",
+         insertbackground="#cdd6f4", bd=0,
+         highlightthickness=1, highlightcolor="#89b4fa").grid(row=2, column=1, padx=10, pady=4, sticky='w')
+
+tk.Scale(frame, from_=10, to=2000, orient=tk.HORIZONTAL,
+         variable=delay_var, bg="#313244", fg="#cdd6f4",
+         troughcolor="#45475a", highlightthickness=0,
+         length=180, showvalue=False).grid(row=3, column=0, columnspan=3, padx=10, pady=(0,10), sticky='w')
+
+bind_frame = tk.Frame(root, bg="#1e1e2e")
+bind_frame.pack(pady=10)
+
+bind_label = tk.Label(bind_frame, text="Bind: [F6]",
+                      font=("Segoe UI", 10, "bold"),
+                      bg="#1e1e2e", fg="#89dceb")
+bind_label.grid(row=0, column=0, padx=10)
+
+bind_btn = tk.Button(bind_frame, text="🎯 Ustaw bind",
+                     command=start_bind_listen,
+                     font=("Segoe UI", 9, "bold"),
+                     bg="#89b4fa", fg="#1e1e2e",
+                     activebackground="#74a8f5",
+                     bd=0, padx=10, pady=4, cursor="hand2")
+bind_btn.grid(row=0, column=1, padx=10)
+
+btn_toggle = tk.Button(root, text="▶ START", command=toggle,
+                       font=("Segoe UI", 13, "bold"),
+                       bg="#a6e3a1", fg="#1e1e2e",
+                       activebackground="#94d682",
+                       bd=0, padx=30, pady=8, cursor="hand2")
+btn_toggle.pack(pady=(6, 6))
+
+status_label = tk.Label(root, text="Status: ZATRZYMANY ⛔",
+                        font=("Segoe UI", 10),
+                        bg="#1e1e2e", fg="#ff4444")
+status_label.pack()
+
+start_global_listener()
+root.mainloop()
